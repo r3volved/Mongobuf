@@ -73,6 +73,7 @@ async function run( protoFile, mongoStr ) {
 		let depends = []; 
 		
 		let dependencies = new Map();
+		let keyIndex = {};
 		
 		for( let m = 0; m < messages.length; ++m ) {
 			
@@ -119,8 +120,10 @@ async function run( protoFile, mongoStr ) {
 						fname += p[0].toUpperCase()+p.slice(1);
 					}
 				}
-
+				
 				ftype = typeFormat( ftype, enumList ); 
+				fname = fname+(repeat ? "List" : "");
+				keyIndex[fname] = ftype;
 				
 				//If type is a schema, add to dependencies
 				if( ftype.includes('Schema') ) {
@@ -128,30 +131,30 @@ async function run( protoFile, mongoStr ) {
 				}
 				
 				//If name is ID then this is a primary key
-				if( fname === "id" ) {
-					if( enumList.get(ftype) ) {
-						enumStr = enumList.get(ftype).join("', '");
-						ftype = "{\n        type: String,\n        enum: [ '"+enumStr+"' ],\n        index:true,\n        unique:true\n    }";
-					} else {
-						ftype = "{ type: "+ftype+", index: true, unique: true }";
-					}
-				}
+//				if( fname === "id" ) {
+//					if( enumList.get(ftype) ) {
+//						enumStr = enumList.get(ftype).join("', '");
+//						ftype = "{\n        type: Number,\n        enum: [ '"+enumStr+"' ],\n        index:true,\n        unique:true\n    }";
+//					} else {
+//						ftype = "{ type: "+ftype+", index: true, unique: true }";
+//					}
+//				}
 
 				//If enum, make enum field
 				if( enumList.get(ftype) ) {
 					enumStr = enumList.get(ftype).join("', '");
-					ftype = "{\n        type: String,\n        enum: [ '"+enumStr+"' ]\n    }";
+					ftype = "{\n        type: Number,\n        enum: [ '"+enumStr+"' ]\n    }";
 				}
 				
 				if( repeat ) {
 					if( ftype.includes('Schema') ) {
-						ftype = "{\n        type: [ mongoose.Schema.Types.Mixed ],\n        ref: \""+ftype.replace("Schema","")+"\"\n    }"; 
+						ftype = "{\n        type: [ Schema.Types.ObjectId ],\n        ref: \""+ftype.replace("Schema","")+"\"\n    }"; 
 					} else {
 						ftype = "[ "+ftype+" ]";
 					}
 				}
 				
-				if( ftype.endsWith("Schema") ) { ftype = "mongoose.Schema.Types.Mixed" }
+				if( ftype.endsWith("Schema") ) { ftype = "{\n        type: Schema.Types.ObjectId,\n        ref: \""+ftype.replace("Schema","")+"\"\n    }" }
 				fieldStr += fname+": "+ftype;
 				model += fieldStr+",\n";
 				
@@ -202,6 +205,7 @@ async function run( protoFile, mongoStr ) {
 	
 		try {
 			await fs.writeFileSync(__dirname+'/models/index.js', indexStr);
+			await fs.writeFileSync(__dirname+'/models/index.json', JSON.stringify(keyIndex,""," "));
 			console.info('+ Created index');
 		} catch(e) { throw e; }
 
